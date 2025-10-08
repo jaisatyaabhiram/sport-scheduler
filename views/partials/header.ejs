@@ -8,6 +8,7 @@
                 <li><a href="/dashboard">Dashboard</a></li>
                 <% if (locals.user.role === 'admin') { %>
                     <li><a href="/admin/sports">Sports</a></li>
+                    <li><a href="/sessions/create">Create Session</a></li>
                     <li><a href="/admin/reports">Reports</a></li>
                 <% } %>
                 <li><a href="/logout">Logout (<%= locals.user.name %>)</a></li>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - Sport Scheduler</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <%- include('partials/header') %>
+
+    <div class="container">
+        <div class="card" style="text-align: center; margin: 50px auto; max-width: 500px;">
+            <h2>Error</h2>
+            <div class="alert alert-error">
+                <%= typeof message !== 'undefined' ? message : 'An unexpected error occurred' %>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+                <a href="/" class="btn">Go Home</a>
+                <a href="/dashboard" class="btn">Dashboard</a>
+            </div>
+        </div>
+    </div>
+
+    <%- include('partials/footer') %>
+</body>
+</html>

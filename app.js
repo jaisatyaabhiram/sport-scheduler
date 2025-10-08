@@ -7,16 +7,43 @@ const bcrypt = require('bcryptjs');
 const admin = require('firebase-admin');
 const path = require('path');
 
-// Initialize Firebase Admin
-const serviceAccount = require('./config/key.json');
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
-});
+// Suppress verbose Firebase logs
+process.env.FIREBASE_DEBUG = false;
+process.env.GRPC_VERBOSITY = 'NONE';
 
-const db = admin.firestore();
+// Initialize Firebase Admin with better error handling
+let db;
+try {
+  const serviceAccount = require('./config/key.json');
+  
+  // Check if service account is properly configured
+  if (!serviceAccount.project_id) {
+    throw new Error('Firebase service account configuration is invalid');
+  }
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
+  });
+
+  db = admin.firestore();
+  
+  // Test the connection
+  db.collection('test').doc('test').get()
+    .then(() => {
+      console.log('✅ Firebase Firestore connected successfully');
+    })
+    .catch((error) => {
+      console.error('❌ Firebase Firestore connection failed:', error.message);
+    });
+
+} catch (error) {
+  console.error('❌ Firebase initialization failed:', error.message);
+  process.exit(1);
+}
 
 const app = express();
+
 
 // Middleware
 app.set('view engine', 'ejs');
@@ -70,6 +97,12 @@ class User {
     const userDoc = await db.collection('users').doc(id).get();
     if (!userDoc.exists) return null;
     return { id: userDoc.id, ...userDoc.data() };
+  }
+
+  static async getAllPlayers() {
+    const usersRef = db.collection('users');
+    const snapshot = await usersRef.where('role', '==', 'player').get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   }
 
   validPassword(password) {
@@ -135,7 +168,6 @@ app.get('/', (req, res) => {
 });
 
 // Auth routes
-// Auth routes
 app.get('/login', (req, res) => {
   res.render('auth/login', { error: null });
 });
@@ -146,7 +178,9 @@ app.post('/login', (req, res, next) => {
       return next(err);
     }
     if (!user) {
-      return res.render('auth/login', { error: info.message || 'Invalid credentials' });
+      return res.render('auth/login', { 
+        error: info && info.message ? info.message : 'Invalid email or password' 
+      });
     }
     req.logIn(user, (err) => {
       if (err) {
@@ -158,7 +192,7 @@ app.post('/login', (req, res, next) => {
 });
 
 app.get('/register', (req, res) => {
-  res.render('auth/register');
+  res.render('auth/register', { error: null });
 });
 
 app.post('/register', async (req, res) => {
@@ -168,6 +202,10 @@ app.post('/register', async (req, res) => {
     // Basic validation
     if (!name || !email || !password) {
       return res.render('auth/register', { error: 'All fields are required' });
+    }
+    
+    if (password.length < 6) {
+      return res.render('auth/register', { error: 'Password must be at least 6 characters long' });
     }
     
     const existingUser = await User.findByEmail(email);
@@ -186,10 +224,11 @@ app.post('/register', async (req, res) => {
 
     res.redirect('/login');
   } catch (error) {
-    console.error(error);
+    console.error('Registration error:', error);
     res.render('auth/register', { error: 'Registration failed. Please try again.' });
   }
 });
+
 app.get('/logout', (req, res) => {
   req.logout(() => {
     res.redirect('/');
@@ -203,32 +242,69 @@ app.get('/dashboard', requirePlayer, async (req, res) => {
       const sports = await db.collection('sports').where('createdBy', '==', req.user.id).get();
       const sportsList = sports.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
+      // Get sessions with applications
+      const sessions = await db.collection('sessions').get();
+      const sessionsWithApplications = [];
+      
+      for (let doc of sessions.docs) {
+        const sessionData = { id: doc.id, ...doc.data() };
+        const applications = await db.collection('sessionApplications')
+          .where('sessionId', '==', doc.id)
+          .where('status', '==', 'pending')
+          .get();
+        
+        sessionData.pendingApplications = applications.docs.map(appDoc => ({
+          id: appDoc.id,
+          ...appDoc.data()
+        }));
+        
+        sessionsWithApplications.push(sessionData);
+      }
+      
       res.render('admin/dashboard', { 
-        sports: sportsList 
+        sports: sportsList,
+        sessions: sessionsWithApplications
       });
     } else {
-      // Player dashboard
-      const createdSessions = await db.collection('sessions')
-        .where('createdBy', '==', req.user.id)
-        .get();
-      
-      const joinedSessions = await db.collection('sessions')
-        .where('players', 'array-contains', req.user.id)
+      // Player dashboard - can only view and apply to sessions
+      const appliedSessions = await db.collection('sessionApplications')
+        .where('playerId', '==', req.user.id)
         .get();
 
+      const appliedSessionIds = appliedSessions.docs.map(doc => doc.data().sessionId);
+      
       const availableSessions = await db.collection('sessions')
         .where('dateTime', '>=', new Date())
+        .where('status', '==', 'active')
         .get();
 
+      // Get session details for applied sessions
+      const appliedSessionDetails = [];
+      for (let sessionId of appliedSessionIds) {
+        const sessionDoc = await db.collection('sessions').doc(sessionId).get();
+        if (sessionDoc.exists) {
+          appliedSessionDetails.push({
+            id: sessionDoc.id,
+            ...sessionDoc.data(),
+            application: appliedSessions.docs.find(doc => doc.data().sessionId === sessionId).data()
+          });
+        }
+      }
+
       res.render('player/dashboard', {
-        createdSessions: createdSessions.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-        joinedSessions: joinedSessions.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-        availableSessions: availableSessions.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        availableSessions: availableSessions.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data(),
+          hasApplied: appliedSessionIds.includes(doc.id)
+        })),
+        appliedSessions: appliedSessionDetails
       });
     }
   } catch (error) {
-    console.error(error);
-    res.render('error', { message: 'Error loading dashboard' });
+    console.error('Dashboard error:', error);
+    res.status(500).render('error', { 
+      message: 'Error loading dashboard. Please try again later.' 
+    });
   }
 });
 
@@ -292,11 +368,11 @@ app.get('/admin/reports', requireAdmin, async (req, res) => {
   }
 });
 
-// Session routes
-app.get('/sessions/create', requirePlayer, async (req, res) => {
+// Session routes - Only admins can create sessions
+app.get('/sessions/create', requireAdmin, async (req, res) => {
   try {
     const sports = await db.collection('sports').get();
-    res.render('player/create-session', {
+    res.render('admin/create-session', {
       sports: sports.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     });
   } catch (error) {
@@ -305,19 +381,16 @@ app.get('/sessions/create', requirePlayer, async (req, res) => {
   }
 });
 
-app.post('/sessions/create', requirePlayer, async (req, res) => {
+app.post('/sessions/create', requireAdmin, async (req, res) => {
   try {
-    const { sport, teamAPlayers, teamBPlayers, additionalPlayers, dateTime, venue } = req.body;
+    const { sport, dateTime, venue, maxPlayers } = req.body;
     
     await db.collection('sessions').add({
       sport,
-      teamAPlayers: teamAPlayers ? teamAPlayers.split(',') : [],
-      teamBPlayers: teamBPlayers ? teamBPlayers.split(',') : [],
-      additionalPlayers: parseInt(additionalPlayers) || 0,
+      maxPlayers: parseInt(maxPlayers) || 10,
       dateTime: new Date(dateTime),
       venue,
       createdBy: req.user.id,
-      players: [req.user.id],
       status: 'active',
       createdAt: new Date()
     });
@@ -329,7 +402,8 @@ app.post('/sessions/create', requirePlayer, async (req, res) => {
   }
 });
 
-app.post('/sessions/:id/join', requirePlayer, async (req, res) => {
+// Player applies to join session
+app.post('/sessions/:id/apply', requirePlayer, async (req, res) => {
   try {
     const sessionId = req.params.id;
     const sessionRef = db.collection('sessions').doc(sessionId);
@@ -343,26 +417,123 @@ app.post('/sessions/:id/join', requirePlayer, async (req, res) => {
     
     // Check if session is in the past
     if (new Date(session.dateTime) < new Date()) {
-      return res.render('error', { message: 'Cannot join past sessions' });
+      return res.render('error', { message: 'Cannot apply to past sessions' });
     }
 
-    // Check if user already joined
-    if (session.players.includes(req.user.id)) {
+    // Check if player already applied
+    const existingApplication = await db.collection('sessionApplications')
+      .where('sessionId', '==', sessionId)
+      .where('playerId', '==', req.user.id)
+      .get();
+
+    if (!existingApplication.empty) {
       return res.redirect('/dashboard');
     }
 
-    await sessionRef.update({
-      players: admin.firestore.FieldValue.arrayUnion(req.user.id)
+    // Create application
+    await db.collection('sessionApplications').add({
+      sessionId,
+      playerId: req.user.id,
+      playerName: req.user.name,
+      playerEmail: req.user.email,
+      status: 'pending',
+      appliedAt: new Date()
     });
 
     res.redirect('/dashboard');
   } catch (error) {
     console.error(error);
-    res.render('error', { message: 'Error joining session' });
+    res.render('error', { message: 'Error applying to session' });
   }
 });
 
-app.post('/sessions/:id/cancel', requirePlayer, async (req, res) => {
+// Admin manages session applications
+app.get('/admin/sessions/:id/applications', requireAdmin, async (req, res) => {
+  try {
+    const sessionId = req.params.id;
+    const sessionDoc = await db.collection('sessions').doc(sessionId).get();
+    
+    if (!sessionDoc.exists) {
+      return res.render('error', { message: 'Session not found' });
+    }
+
+    const applications = await db.collection('sessionApplications')
+      .where('sessionId', '==', sessionId)
+      .get();
+
+    const session = { id: sessionDoc.id, ...sessionDoc.data() };
+    const applicationList = applications.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    res.render('admin/session-applications', {
+      session,
+      applications: applicationList
+    });
+  } catch (error) {
+    console.error(error);
+    res.render('error', { message: 'Error loading applications' });
+  }
+});
+
+// Admin accepts/rejects applications
+app.post('/admin/applications/:id/accept', requireAdmin, async (req, res) => {
+  try {
+    const applicationId = req.params.id;
+    const applicationRef = db.collection('sessionApplications').doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+    
+    if (!applicationDoc.exists) {
+      return res.render('error', { message: 'Application not found' });
+    }
+
+    const application = applicationDoc.data();
+    
+    // Update application status
+    await applicationRef.update({
+      status: 'accepted',
+      processedAt: new Date(),
+      processedBy: req.user.id
+    });
+
+    // Add player to session
+    const sessionRef = db.collection('sessions').doc(application.sessionId);
+    await sessionRef.update({
+      players: admin.firestore.FieldValue.arrayUnion(application.playerId)
+    });
+
+    res.redirect(`/admin/sessions/${application.sessionId}/applications`);
+  } catch (error) {
+    console.error(error);
+    res.render('error', { message: 'Error accepting application' });
+  }
+});
+
+app.post('/admin/applications/:id/reject', requireAdmin, async (req, res) => {
+  try {
+    const applicationId = req.params.id;
+    const applicationRef = db.collection('sessionApplications').doc(applicationId);
+    const applicationDoc = await applicationRef.get();
+    
+    if (!applicationDoc.exists) {
+      return res.render('error', { message: 'Application not found' });
+    }
+
+    const application = applicationDoc.data();
+    
+    // Update application status
+    await applicationRef.update({
+      status: 'rejected',
+      processedAt: new Date(),
+      processedBy: req.user.id
+    });
+
+    res.redirect(`/admin/sessions/${application.sessionId}/applications`);
+  } catch (error) {
+    console.error(error);
+    res.render('error', { message: 'Error rejecting application' });
+  }
+});
+
+app.post('/sessions/:id/cancel', requireAdmin, async (req, res) => {
   try {
     const sessionId = req.params.id;
     const { reason } = req.body;
@@ -371,13 +542,6 @@ app.post('/sessions/:id/cancel', requirePlayer, async (req, res) => {
     
     if (!sessionDoc.exists) {
       return res.render('error', { message: 'Session not found' });
-    }
-
-    const session = sessionDoc.data();
-    
-    // Check if user is the creator
-    if (session.createdBy !== req.user.id && req.user.role !== 'admin') {
-      return res.render('error', { message: 'Only session creator can cancel the session' });
     }
 
     await sessionRef.update({
@@ -392,7 +556,20 @@ app.post('/sessions/:id/cancel', requirePlayer, async (req, res) => {
     res.render('error', { message: 'Error cancelling session' });
   }
 });
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).render('error', { 
+    message: err.message || 'An internal server error occurred' 
+  });
+});
 
+// 404 handler
+app.use((req, res) => {
+  res.status(404).render('error', { 
+    message: 'Page not found' 
+  });
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
