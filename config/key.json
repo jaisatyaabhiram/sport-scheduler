@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "sports-scheduler-45f77",
+  "private_key_id": "3a92e05341ee203daba9256929ab68135328ceea",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDjVUbnznIDMlOL\nNdAsJaOsJFjVX+Yd/CAmQ02yn+cn1mckxqpiPHYwVgiKZw3bBK641MLtE6FaHvMg\np0Z4VXG5GLi3q+YbaCGaZiXtVDDEgyt0dv0kpoZ7bF8n8D5auLSxEPiGR8URRgG0\nqzEmpH0RtyC7tL2dD/fZjVfwwFHKuxL46wxhs4sWHl+87cesll8Wmp9U9NJHUm6I\nW/gTQCq/SUy48jPx1vh+M4JGeoHU1mC831C5vGHbL+jNzXkA7jBU0/FcRIaF2/eg\np0YHjzq/4kLvWw4/HdIWrtvtSEN1BARCqEwbZMWhIR8RuEAlfFELo7dgGSmxTN1v\ni+mB5sEtAgMBAAECggEAHtFFZLC9j3Xf0fAYWZe7pZ8ixMA0lY2DfTRkAMpA/4tG\n3bspx1nrareK/lokjHOIzQkYqKNf3PPzoRJUEQWCPmWdytZcggwefAwLaa4fU1B1\n0Fq+C90gP3SMPMGKbml6I0PJ8QgjLKmJGykW52ZmhwOEhjWk+7j5sC4DRSGJJPpw\nSHujsrJc5l36xcQ8wtVgc/7b0MDI6nWkXnhFxR7w2WLWUoKOzvIJRWn2dHmkdDJS\n2W1ImM5a0LbDAzXHKUFOyZ0GIAV35qMQ8umaeIYxIgdVnudTE1ngZ0lL7pl7WJwW\n2/d2YJIJ52YxqFjgbiqkamShLRWSEpWki4Ny617YSQKBgQD8u5sV757448RTGQ/R\nvf6VuJuuC9E1tGK/Sx1RAwffi82HnIIVSfLROj+dBJwevnwSi0RisvUOvQWKIkvg\n2QM2Ojc6U4lH4O3j3NEtoOOiy+HXyyeQG32f1QXBwtygq+Pi3ZZSINRFgRAGxhc2\na/P45og6kgnvu+xnYJMKPwnaSQKBgQDmRZ0CRY8yqTeeW5zwUXe+Qz1Eh3S4mMUH\nX78ldq4a2r4Apbk1Bf2/0iXvxs3Xkc2Di3fgKBrG2CDatICnhUW1A9UFF73KNPSo\nsjULUpMGM0fIKB1G5UsDAJj+2h9kkkN3PYqHWCpStuzShMSub/zBNByLYuktx5kQ\niAnpM0uPxQKBgCPy44ppPSmV7FUNmYxyBAZz7eEB2U5UTD99hbwCPFp13lRN1MsG\na72LFYVWJIbS/X79xEptviHMjT8qxbRD6gsKmNR5EWvh+LSSskZVPkvnyEYTpZr/\n7gyQFnOLLirEiHO6pSkldkw0oXz1LFQXYuqij/oUz8kD6AqEWCX69YHRAoGBANFH\nLz0jTtOyKxRHGsjmobdPkN05ZoFmhpr/D8/SnsVVTB12gG6KNWYibcwPmIB0yJzn\nIlmc2UkioClkpxCY9RNgmjd4rkqZ+klfPQo/T9PwwypMGt+WAKiH4ISuZJ2YuKwk\nSERdgomOKonhlIcczFAjNlYP3PB4WMpHeQpyThgpAoGAEyNze/5Gs2NIMdMYfqee\nD6/pWl9G7M8H97ZjXtN82U5bizniSvxrUdMtC5Kr594Id6LJpJ5l+T15mqKtvCH6\nXR53dYGakQrjt+6fwxYc+cZbLN4S+/trU9nyuQmOFzjXPetepJ+hC7XpB7HKMAVs\nW8f/QAo2Nmaf4I3XaJyGz7s=\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@sports-scheduler-45f77.iam.gserviceaccount.com",
+  "client_id": "108504714661653569935",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40sports-scheduler-45f77.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

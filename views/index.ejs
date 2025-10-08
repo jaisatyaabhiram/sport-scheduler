@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sport Scheduler</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <%- include('partials/header') %>
+
+    <section class="hero">
+        <div class="container">
+            <h1>Welcome to Sport Scheduler</h1>
+            <p>Organize and join sports sessions with ease</p>
+            <% if (!locals.user) { %>
+    <a href="/register" class="btn btn-primary">Get Started</a>
+    <% } else { %>
+    <a href="/dashboard" class="btn btn-primary">Go to Dashboard</a>
+<% } %>
+        </div>
+    </section>
+
+    <section class="container">
+        <div class="card">
+            <h2>About Sport Scheduler</h2>
+            <p>Sport Scheduler helps you plan and organize sports events or tournaments. Set dates, times, venues, and manage teams for each game or match.</p>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 30px;">
+                <div>
+                    <h3>For Players</h3>
+                    <ul>
+                        <li>Create sport sessions</li>
+                        <li>Join existing sessions</li>
+                        <li>Manage your schedule</li>
+                        <li>Connect with other players</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>For Administrators</h3>
+                    <ul>
+                        <li>Manage sports categories</li>
+                        <li>View detailed reports</li>
+                        <li>Monitor session activity</li>
+                        <li>Track sports popularity</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <%- include('partials/footer') %>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Sports - Sport Scheduler</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <%- include('../partials/header') %>
+
+    <div class="container">
+        <h1>Manage Sports</h1>
+        
+        <div class="card">
+            <h2>Create New Sport</h2>
+            <form action="/admin/sports" method="POST">
+                <div class="form-group">
+                    <label for="name">Sport Name:</label>
+                    <input type="text" id="name" name="name" required placeholder="e.g., Football, Basketball, Tennis">
+                </div>
+                <button type="submit" class="btn">Create Sport</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Existing Sports</h2>
+            <% if (sports.length === 0) { %>
+                <p>No sports created yet.</p>
+            <% } else { %>
+                <ul>
+                    <% sports.forEach(sport => { %>
+                        <li style="padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong><%= sport.name %></strong>
+                                <br><small>Created: <%= sport.createdAt.toDate().toLocaleDateString() %></small>
+                            </div>
+                        </li>
+                    <% }); %>
+                </ul>
+            <% } %>
+        </div>
+    </div>
+
+    <%- include('../partials/footer') %>
+</body>
+</html>

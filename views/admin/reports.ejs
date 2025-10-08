@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - Sport Scheduler</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <%- include('../partials/header') %>
+
+    <div class="container">
+        <h1>Session Reports</h1>
+
+        <div class="card">
+            <h2>Filter Reports</h2>
+            <form method="GET">
+                <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end;">
+                    <div class="form-group">
+                        <label for="startDate">Start Date:</label>
+                        <input type="date" id="startDate" name="startDate" value="<%= startDate %>">
+                    </div>
+                    <div class="form-group">
+                        <label for="endDate">End Date:</label>
+                        <input type="date" id="endDate" name="endDate" value="<%= endDate %>">
+                    </div>
+                    <div>
+                        <button type="submit" class="btn">Generate Report</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <% if (startDate && endDate) { %>
+            <div class="card">
+                <h2>Sports Popularity (<%= startDate %> to <%= endDate %>)</h2>
+                <% if (Object.keys(sportsCount).length === 0) { %>
+                    <p>No sessions found in the selected period.</p>
+                <% } else { %>
+                    <div class="sessions-grid">
+                        <% Object.entries(sportsCount).forEach(([sport, count]) => { %>
+                            <div class="stat-card">
+                                <div class="stat-number"><%= count %></div>
+                                <div><%= sport %></div>
+                            </div>
+                        <% }); %>
+                    </div>
+                <% } %>
+            </div>
+
+            <div class="card">
+                <h2>Session Details</h2>
+                <% if (sessions.length === 0) { %>
+                    <p>No sessions found in the selected period.</p>
+                <% } else { %>
+                    <div class="sessions-grid">
+                        <% sessions.forEach(session => { %>
+                            <div class="session-card">
+                                <h3><%= session.sport %></h3>
+                                <div class="session-meta">
+                                    <strong>Date:</strong> <%= session.dateTime.toDate().toLocaleString() %><br>
+                                    <strong>Venue:</strong> <%= session.venue %><br>
+                                    <strong>Players:</strong> <%= session.players.length %><br>
+                                    <strong>Status:</strong> <%= session.status %>
+                                </div>
+                            </div>
+                        <% }); %>
+                    </div>
+                <% } %>
+            </div>
+        <% } %>
+    </div>
+
+    <%- include('../partials/footer') %>
+</body>
+</html>
