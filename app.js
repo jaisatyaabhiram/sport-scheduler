@@ -44,7 +44,6 @@ try {
 
 const app = express();
 
-
 // Middleware
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -79,30 +78,51 @@ class User {
   }
 
   static async create(userData) {
-    const usersRef = db.collection('users');
-    const docRef = await usersRef.add(userData);
-    return docRef.id;
+    try {
+      const usersRef = db.collection('users');
+      const docRef = await usersRef.add(userData);
+      console.log('✅ User created with ID:', docRef.id);
+      return docRef.id;
+    } catch (error) {
+      console.error('❌ Error creating user:', error);
+      throw new Error('Failed to create user');
+    }
   }
 
   static async findByEmail(email) {
-    const usersRef = db.collection('users');
-    const snapshot = await usersRef.where('email', '==', email).get();
-    if (snapshot.empty) return null;
-    
-    const doc = snapshot.docs[0];
-    return { id: doc.id, ...doc.data() };
+    try {
+      const usersRef = db.collection('users');
+      const snapshot = await usersRef.where('email', '==', email).get();
+      if (snapshot.empty) return null;
+      
+      const doc = snapshot.docs[0];
+      return { id: doc.id, ...doc.data() };
+    } catch (error) {
+      console.error('❌ Error finding user by email:', error);
+      throw new Error('Database error');
+    }
   }
 
   static async findById(id) {
-    const userDoc = await db.collection('users').doc(id).get();
-    if (!userDoc.exists) return null;
-    return { id: userDoc.id, ...userDoc.data() };
+    try {
+      const userDoc = await db.collection('users').doc(id).get();
+      if (!userDoc.exists) return null;
+      return { id: userDoc.id, ...userDoc.data() };
+    } catch (error) {
+      console.error('❌ Error finding user by ID:', error);
+      throw new Error('Database error');
+    }
   }
 
   static async getAllPlayers() {
-    const usersRef = db.collection('users');
-    const snapshot = await usersRef.where('role', '==', 'player').get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    try {
+      const usersRef = db.collection('users');
+      const snapshot = await usersRef.where('role', '==', 'player').get();
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('❌ Error getting all players:', error);
+      throw new Error('Database error');
+    }
   }
 
   validPassword(password) {
@@ -243,10 +263,10 @@ app.get('/dashboard', requirePlayer, async (req, res) => {
       const sportsList = sports.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       // Get sessions with applications
-      const sessions = await db.collection('sessions').get();
+      const sessionsSnapshot = await db.collection('sessions').get();
       const sessionsWithApplications = [];
       
-      for (let doc of sessions.docs) {
+      for (let doc of sessionsSnapshot.docs) {
         const sessionData = { id: doc.id, ...doc.data() };
         const applications = await db.collection('sessionApplications')
           .where('sessionId', '==', doc.id)
@@ -267,11 +287,11 @@ app.get('/dashboard', requirePlayer, async (req, res) => {
       });
     } else {
       // Player dashboard - can only view and apply to sessions
-      const appliedSessions = await db.collection('sessionApplications')
+      const appliedApplications = await db.collection('sessionApplications')
         .where('playerId', '==', req.user.id)
         .get();
 
-      const appliedSessionIds = appliedSessions.docs.map(doc => doc.data().sessionId);
+      const appliedSessionIds = appliedApplications.docs.map(doc => doc.data().sessionId);
       
       const availableSessions = await db.collection('sessions')
         .where('dateTime', '>=', new Date())
@@ -280,13 +300,14 @@ app.get('/dashboard', requirePlayer, async (req, res) => {
 
       // Get session details for applied sessions
       const appliedSessionDetails = [];
-      for (let sessionId of appliedSessionIds) {
-        const sessionDoc = await db.collection('sessions').doc(sessionId).get();
+      for (let applicationDoc of appliedApplications.docs) {
+        const application = applicationDoc.data();
+        const sessionDoc = await db.collection('sessions').doc(application.sessionId).get();
         if (sessionDoc.exists) {
           appliedSessionDetails.push({
             id: sessionDoc.id,
             ...sessionDoc.data(),
-            application: appliedSessions.docs.find(doc => doc.data().sessionId === sessionId).data()
+            application: { id: applicationDoc.id, ...application }
           });
         }
       }
@@ -316,8 +337,8 @@ app.get('/admin/sports', requireAdmin, async (req, res) => {
       sports: sports.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     });
   } catch (error) {
-    console.error(error);
-    res.render('error', { message: 'Error loading sports' });
+    console.error('Sports load error:', error);
+    res.status(500).render('error', { message: 'Error loading sports' });
   }
 });
 
@@ -331,8 +352,8 @@ app.post('/admin/sports', requireAdmin, async (req, res) => {
     });
     res.redirect('/admin/sports');
   } catch (error) {
-    console.error(error);
-    res.render('error', { message: 'Error creating sport' });
+    console.error('Sport creation error:', error);
+    res.status(500).render('error', { message: 'Error creating sport' });
   }
 });
 
@@ -363,8 +384,8 @@ app.get('/admin/reports', requireAdmin, async (req, res) => {
       endDate
     });
   } catch (error) {
-    console.error(error);
-    res.render('error', { message: 'Error generating reports' });
+    console.error('Reports error:', error);
+    res.status(500).render('error', { message: 'Error generating reports' });
   }
 });
 
@@ -376,8 +397,8 @@ app.get('/sessions/create', requireAdmin, async (req, res) => {
       sports: sports.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     });
   } catch (error) {
-    console.error(error);
-    res.render('error', { message: 'Error loading create session page' });
+    console.error('Create session page error:', error);
+    res.status(500).render('error', { message: 'Error loading create session page' });
   }
 });
 
@@ -391,14 +412,15 @@ app.post('/sessions/create', requireAdmin, async (req, res) => {
       dateTime: new Date(dateTime),
       venue,
       createdBy: req.user.id,
+      players: [], // Initialize empty players array
       status: 'active',
       createdAt: new Date()
     });
 
     res.redirect('/dashboard');
   } catch (error) {
-    console.error(error);
-    res.render('error', { message: 'Error creating session' });
+    console.error('Session creation error:', error);
+    res.status(500).render('error', { message: 'Error creating session' });
   }
 });
 
@@ -410,14 +432,14 @@ app.post('/sessions/:id/apply', requirePlayer, async (req, res) => {
     const sessionDoc = await sessionRef.get();
     
     if (!sessionDoc.exists) {
-      return res.render('error', { message: 'Session not found' });
+      return res.status(404).render('error', { message: 'Session not found' });
     }
 
     const session = sessionDoc.data();
     
     // Check if session is in the past
     if (new Date(session.dateTime) < new Date()) {
-      return res.render('error', { message: 'Cannot apply to past sessions' });
+      return res.status(400).render('error', { message: 'Cannot apply to past sessions' });
     }
 
     // Check if player already applied
@@ -442,8 +464,8 @@ app.post('/sessions/:id/apply', requirePlayer, async (req, res) => {
 
     res.redirect('/dashboard');
   } catch (error) {
-    console.error(error);
-    res.render('error', { message: 'Error applying to session' });
+    console.error('Application error:', error);
+    res.status(500).render('error', { message: 'Error applying to session' });
   }
 });
 
@@ -454,7 +476,7 @@ app.get('/admin/sessions/:id/applications', requireAdmin, async (req, res) => {
     const sessionDoc = await db.collection('sessions').doc(sessionId).get();
     
     if (!sessionDoc.exists) {
-      return res.render('error', { message: 'Session not found' });
+      return res.status(404).render('error', { message: 'Session not found' });
     }
 
     const applications = await db.collection('sessionApplications')
@@ -469,8 +491,8 @@ app.get('/admin/sessions/:id/applications', requireAdmin, async (req, res) => {
       applications: applicationList
     });
   } catch (error) {
-    console.error(error);
-    res.render('error', { message: 'Error loading applications' });
+    console.error('Applications load error:', error);
+    res.status(500).render('error', { message: 'Error loading applications' });
   }
 });
 
@@ -482,7 +504,7 @@ app.post('/admin/applications/:id/accept', requireAdmin, async (req, res) => {
     const applicationDoc = await applicationRef.get();
     
     if (!applicationDoc.exists) {
-      return res.render('error', { message: 'Application not found' });
+      return res.status(404).render('error', { message: 'Application not found' });
     }
 
     const application = applicationDoc.data();
@@ -502,8 +524,8 @@ app.post('/admin/applications/:id/accept', requireAdmin, async (req, res) => {
 
     res.redirect(`/admin/sessions/${application.sessionId}/applications`);
   } catch (error) {
-    console.error(error);
-    res.render('error', { message: 'Error accepting application' });
+    console.error('Accept application error:', error);
+    res.status(500).render('error', { message: 'Error accepting application' });
   }
 });
 
@@ -514,7 +536,7 @@ app.post('/admin/applications/:id/reject', requireAdmin, async (req, res) => {
     const applicationDoc = await applicationRef.get();
     
     if (!applicationDoc.exists) {
-      return res.render('error', { message: 'Application not found' });
+      return res.status(404).render('error', { message: 'Application not found' });
     }
 
     const application = applicationDoc.data();
@@ -528,8 +550,8 @@ app.post('/admin/applications/:id/reject', requireAdmin, async (req, res) => {
 
     res.redirect(`/admin/sessions/${application.sessionId}/applications`);
   } catch (error) {
-    console.error(error);
-    res.render('error', { message: 'Error rejecting application' });
+    console.error('Reject application error:', error);
+    res.status(500).render('error', { message: 'Error rejecting application' });
   }
 });
 
@@ -541,7 +563,7 @@ app.post('/sessions/:id/cancel', requireAdmin, async (req, res) => {
     const sessionDoc = await sessionRef.get();
     
     if (!sessionDoc.exists) {
-      return res.render('error', { message: 'Session not found' });
+      return res.status(404).render('error', { message: 'Session not found' });
     }
 
     await sessionRef.update({
@@ -552,13 +574,37 @@ app.post('/sessions/:id/cancel', requireAdmin, async (req, res) => {
 
     res.redirect('/dashboard');
   } catch (error) {
-    console.error(error);
-    res.render('error', { message: 'Error cancelling session' });
+    console.error('Cancel session error:', error);
+    res.status(500).render('error', { message: 'Error cancelling session' });
   }
 });
+
+// Health check route
+app.get('/health', async (req, res) => {
+  try {
+    // Test Firebase connection
+    await db.collection('health').doc('check').set({
+      timestamp: new Date(),
+      status: 'ok'
+    });
+    
+    res.json({ 
+      status: 'ok', 
+      database: 'connected',
+      timestamp: new Date() 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error', 
+      database: 'disconnected',
+      error: error.message 
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  console.error('Server Error:', err);
   res.status(500).render('error', { 
     message: err.message || 'An internal server error occurred' 
   });
@@ -570,7 +616,9 @@ app.use((req, res) => {
     message: 'Page not found' 
   });
 });
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📊 Health check available at http://localhost:${PORT}/health`);
 });

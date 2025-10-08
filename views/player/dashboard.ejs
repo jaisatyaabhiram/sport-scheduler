@@ -10,102 +10,90 @@
     <%- include('../partials/header') %>
 
     <div class="container">
-        <h1>Welcome, <%= locals.user.name %>!</h1>        
+        <h1>Welcome, <%= locals.user.name %>!</h1>
+        
         <div class="dashboard-stats">
             <div class="stat-card">
-                <div class="stat-number"><%= createdSessions.length %></div>
-                <div>Sessions Created</div>
+                <div class="stat-number"><%= appliedSessions.length %></div>
+                <div>Sessions Applied</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number"><%= joinedSessions.length %></div>
-                <div>Sessions Joined</div>
+                <div class="stat-number">
+                    <%= appliedSessions.filter(s => s.application && s.application.status === 'accepted').length %>
+                </div>
+                <div>Sessions Accepted</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number"><%= availableSessions.length %></div>
+                <div class="stat-number">
+                    <%= availableSessions.filter(s => !s.hasApplied).length %>
+                </div>
                 <div>Available Sessions</div>
             </div>
-        </div>
-
-        <div style="margin: 30px 0;">
-            <a href="/sessions/create" class="btn">Create New Session</a>
-        </div>
-
-        <!-- Created Sessions -->
-        <div class="card">
-            <h2>My Created Sessions</h2>
-            <% if (createdSessions.length === 0) { %>
-                <p>You haven't created any sessions yet.</p>
-            <% } else { %>
-                <div class="sessions-grid">
-                    <% createdSessions.forEach(session => { %>
-                        <div class="session-card <%= session.status === 'cancelled' ? 'cancelled' : '' %>">
-                            <h3><%= session.sport %></h3>
-                            <div class="session-meta">
-                                <strong>Date:</strong> <%= session.dateTime.toDate().toLocaleString() %><br>
-                                <strong>Venue:</strong> <%= session.venue %><br>
-                                <strong>Players:</strong> <%= session.players.length %>
-                            </div>
-                            <% if (session.status === 'cancelled') { %>
-                                <p><strong>Cancelled:</strong> <%= session.cancellationReason %></p>
-                            <% } else { %>
-                                <form action="/sessions/<%= session.id %>/cancel" method="POST" style="margin-top: 10px;">
-                                    <div class="form-group">
-                                        <input type="text" name="reason" placeholder="Cancellation reason" required>
-                                    </div>
-                                    <button type="submit" class="btn" style="background: #e74c3c;">Cancel Session</button>
-                                </form>
-                            <% } %>
-                        </div>
-                    <% }); %>
-                </div>
-            <% } %>
-        </div>
-
-        <!-- Joined Sessions -->
-        <div class="card">
-            <h2>Sessions I've Joined</h2>
-            <% if (joinedSessions.length === 0) { %>
-                <p>You haven't joined any sessions yet.</p>
-            <% } else { %>
-                <div class="sessions-grid">
-                    <% joinedSessions.forEach(session => { %>
-                        <div class="session-card <%= session.status === 'cancelled' ? 'cancelled' : '' %>">
-                            <h3><%= session.sport %></h3>
-                            <div class="session-meta">
-                                <strong>Date:</strong> <%= session.dateTime.toDate().toLocaleString() %><br>
-                                <strong>Venue:</strong> <%= session.venue %><br>
-                                <strong>Created by:</strong> <%= session.createdBy %>
-                            </div>
-                            <% if (session.status === 'cancelled') { %>
-                                <p><strong>Cancelled:</strong> <%= session.cancellationReason %></p>
-                            <% } %>
-                        </div>
-                    <% }); %>
-                </div>
-            <% } %>
         </div>
 
         <!-- Available Sessions -->
         <div class="card">
             <h2>Available Sessions</h2>
-            <% if (availableSessions.length === 0) { %>
-                <p>No available sessions at the moment.</p>
+            <% const availableToApply = availableSessions.filter(s => !s.hasApplied); %>
+            <% if (availableToApply.length === 0) { %>
+                <p>No available sessions at the moment. Check back later!</p>
             <% } else { %>
                 <div class="sessions-grid">
-                    <% availableSessions.forEach(session => { %>
-                        <% if (!session.players.includes(user.id) && session.createdBy !== user.id) { %>
-                            <div class="session-card">
-                                <h3><%= session.sport %></h3>
-                                <div class="session-meta">
-                                    <strong>Date:</strong> <%= session.dateTime.toDate().toLocaleString() %><br>
-                                    <strong>Venue:</strong> <%= session.venue %><br>
-                                    <strong>Players needed:</strong> <%= session.additionalPlayers %>
-                                </div>
-                                <form action="/sessions/<%= session.id %>/join" method="POST" style="margin-top: 10px;">
-                                    <button type="submit" class="btn">Join Session</button>
-                                </form>
+                    <% availableToApply.forEach(session => { %>
+                        <div class="session-card">
+                            <h3><%= session.sport %></h3>
+                            <div class="session-meta">
+                                <strong>Date:</strong> <%= session.dateTime.toDate().toLocaleString() %><br>
+                                <strong>Venue:</strong> <%= session.venue %><br>
+                                <strong>Players:</strong> <%= session.players ? session.players.length : 0 %>/<%= session.maxPlayers %><br>
+                                <strong>Status:</strong> <%= session.status %>
                             </div>
-                        <% } %>
+                            <form action="/sessions/<%= session.id %>/apply" method="POST" style="margin-top: 10px;">
+                                <button type="submit" class="btn">Apply to Join</button>
+                            </form>
+                        </div>
+                    <% }); %>
+                </div>
+            <% } %>
+        </div>
+
+        <!-- Sessions I've Applied To -->
+        <div class="card">
+            <h2>My Applications</h2>
+            <% if (appliedSessions.length === 0) { %>
+                <p>You haven't applied to any sessions yet.</p>
+            <% } else { %>
+                <div class="sessions-grid">
+                    <% appliedSessions.forEach(session => { %>
+                        <div class="session-card">
+                            <h3><%= session.sport %></h3>
+                            <div class="session-meta">
+                                <strong>Date:</strong> <%= session.dateTime.toDate().toLocaleString() %><br>
+                                <strong>Venue:</strong> <%= session.venue %><br>
+                                <strong>Application Status:</strong> 
+                                <span style="color: 
+                                    <%= session.application.status === 'accepted' ? '#27ae60' : 
+                                       session.application.status === 'rejected' ? '#e74c3c' : '#f39c12' %>">
+                                    <%= session.application.status.toUpperCase() %>
+                                </span>
+                                <% if (session.application.processedAt) { %>
+                                    <br><strong>Processed:</strong> <%= session.application.processedAt.toDate().toLocaleString() %>
+                                <% } %>
+                            </div>
+                            <% if (session.application.status === 'pending') { %>
+                                <p style="color: #f39c12; margin-top: 10px;">
+                                    <strong>Waiting for admin approval</strong>
+                                </p>
+                            <% } else if (session.application.status === 'accepted') { %>
+                                <p style="color: #27ae60; margin-top: 10px;">
+                                    <strong>✓ You're in! See you at the session.</strong>
+                                </p>
+                            <% } else if (session.application.status === 'rejected') { %>
+                                <p style="color: #e74c3c; margin-top: 10px;">
+                                    <strong>Application not accepted</strong>
+                                </p>
+                            <% } %>
+                        </div>
                     <% }); %>
                 </div>
             <% } %>
