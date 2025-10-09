@@ -214,7 +214,10 @@ app.post('/login', (req, res, next) => {
 app.get('/register', (req, res) => {
   res.render('auth/register', { error: null });
 });
-
+//registering the admin
+app.get('/admin-register', (req, res) => {
+  res.render('auth/admin-register', { error: null });
+});
 app.post('/register', async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
@@ -238,7 +241,7 @@ app.post('/register', async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: role || 'player',
+      role: 'player',
       createdAt: new Date()
     });
 
@@ -256,69 +259,45 @@ app.get('/logout', (req, res) => {
 });
 
 // Dashboard route
+// Dashboard route
 app.get('/dashboard', requirePlayer, async (req, res) => {
   try {
     if (req.user.role === 'admin') {
       const sports = await db.collection('sports').where('createdBy', '==', req.user.id).get();
       const sportsList = sports.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // Get sessions with applications
+      // Get all sessions
       const sessionsSnapshot = await db.collection('sessions').get();
-      const sessionsWithApplications = [];
-      
-      for (let doc of sessionsSnapshot.docs) {
-        const sessionData = { id: doc.id, ...doc.data() };
-        const applications = await db.collection('sessionApplications')
-          .where('sessionId', '==', doc.id)
-          .where('status', '==', 'pending')
-          .get();
-        
-        sessionData.pendingApplications = applications.docs.map(appDoc => ({
-          id: appDoc.id,
-          ...appDoc.data()
-        }));
-        
-        sessionsWithApplications.push(sessionData);
-      }
+      const sessionsList = sessionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       res.render('admin/dashboard', { 
         sports: sportsList,
-        sessions: sessionsWithApplications
+        sessions: sessionsList
       });
     } else {
-      // Player dashboard - can only view and apply to sessions
-      const appliedApplications = await db.collection('sessionApplications')
-        .where('playerId', '==', req.user.id)
-        .get();
-
-      const appliedSessionIds = appliedApplications.docs.map(doc => doc.data().sessionId);
-      
+      // Player dashboard - updated for direct join system
       const availableSessions = await db.collection('sessions')
         .where('dateTime', '>=', new Date())
         .where('status', '==', 'active')
         .get();
 
-      // Get session details for applied sessions
-      const appliedSessionDetails = [];
-      for (let applicationDoc of appliedApplications.docs) {
-        const application = applicationDoc.data();
-        const sessionDoc = await db.collection('sessions').doc(application.sessionId).get();
-        if (sessionDoc.exists) {
-          appliedSessionDetails.push({
-            id: sessionDoc.id,
-            ...sessionDoc.data(),
-            application: { id: applicationDoc.id, ...application }
-          });
-        }
-      }
+      // Get sessions the player has joined
+      const joinedSessions = await db.collection('sessions')
+        .where('players', 'array-contains', req.user.id)
+        .where('status', '==', 'active')
+        .get();
 
       res.render('player/dashboard', {
         availableSessions: availableSessions.docs.map(doc => ({ 
           id: doc.id, 
           ...doc.data(),
-          hasApplied: appliedSessionIds.includes(doc.id)
+          hasJoined: joinedSessions.docs.some(joinedDoc => joinedDoc.id === doc.id),
+          isFull: doc.data().players && doc.data().players.length >= doc.data().maxPlayers
         })),
-        appliedSessions: appliedSessionDetails
+        joinedSessions: joinedSessions.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data() 
+        }))
       });
     }
   } catch (error) {
@@ -389,11 +368,11 @@ app.get('/admin/reports', requireAdmin, async (req, res) => {
   }
 });
 
-// Session routes - Only admins can create sessions
-app.get('/sessions/create', async (req, res) => {
+// Session routes - Only player can create sessions
+app.get('/sessions/create',  async (req, res) => {
   try {
     const sports = await db.collection('sports').get();
-    res.render('admin/create-session', {
+    res.render('player/create-session', {
       sports: sports.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     });
   } catch (error) {
@@ -402,17 +381,29 @@ app.get('/sessions/create', async (req, res) => {
   }
 });
 
-app.post('/sessions/create',  async (req, res) => {
+app.post('/sessions/create', async (req, res) => {
   try {
-    const { sport, dateTime, venue, maxPlayers } = req.body;
+    const { sport, dateTime, venue, maxPlayers, teamAPlayers, teamBPlayers, additionalPlayers } = req.body;
     
+    // Process team players from comma-separated strings to arrays
+    const teamA = teamAPlayers ? teamAPlayers.split(',').map(player => player.trim()).filter(player => player) : [];
+    const teamB = teamBPlayers ? teamBPlayers.split(',').map(player => player.trim()).filter(player => player) : [];
+    
+    // Calculate total players from teams and additional players
+    const totalPlayersFromTeams = teamA.length + teamB.length;
+    const additionalPlayersCount = parseInt(additionalPlayers) || 0;
+    const totalMaxPlayers = totalPlayersFromTeams + additionalPlayersCount;
+
     await db.collection('sessions').add({
       sport,
-      maxPlayers: parseInt(maxPlayers) || 10,
+      maxPlayers: totalMaxPlayers > 0 ? totalMaxPlayers : parseInt(maxPlayers) || 10,
       dateTime: new Date(dateTime),
       venue,
       createdBy: req.user.id,
-      players: [], // Initialize empty players array
+      players: [], // Initialize empty players array for dynamic joining
+      teamA: teamA, // Store team A players
+      teamB: teamB, // Store team B players
+      additionalPlayersNeeded: additionalPlayersCount,
       status: 'active',
       createdAt: new Date()
     });
@@ -424,8 +415,8 @@ app.post('/sessions/create',  async (req, res) => {
   }
 });
 
-// Player applies to join session
-app.post('/sessions/:id/apply', requirePlayer, async (req, res) => {
+// Player joins session directly (no approval needed)
+app.post('/sessions/:id/join', requirePlayer, async (req, res) => {
   try {
     const sessionId = req.params.id;
     const sessionRef = db.collection('sessions').doc(sessionId);
@@ -439,38 +430,63 @@ app.post('/sessions/:id/apply', requirePlayer, async (req, res) => {
     
     // Check if session is in the past
     if (new Date(session.dateTime) < new Date()) {
-      return res.status(400).render('error', { message: 'Cannot apply to past sessions' });
+      return res.status(400).render('error', { message: 'Cannot join past sessions' });
     }
 
-    // Check if player already applied
-    const existingApplication = await db.collection('sessionApplications')
-      .where('sessionId', '==', sessionId)
-      .where('playerId', '==', req.user.id)
-      .get();
+    // Check if session is full
+    if (session.players && session.players.length >= session.maxPlayers) {
+      return res.status(400).render('error', { message: 'Session is full' });
+    }
 
-    if (!existingApplication.empty) {
+    // Check if player already joined
+    if (session.players && session.players.includes(req.user.id)) {
       return res.redirect('/dashboard');
     }
 
-    // Create application
-    await db.collection('sessionApplications').add({
-      sessionId,
-      playerId: req.user.id,
-      playerName: req.user.name,
-      playerEmail: req.user.email,
-      status: 'pending',
-      appliedAt: new Date()
+    // Add player to session
+    await sessionRef.update({
+      players: admin.firestore.FieldValue.arrayUnion(req.user.id)
     });
 
     res.redirect('/dashboard');
   } catch (error) {
-    console.error('Application error:', error);
-    res.status(500).render('error', { message: 'Error applying to session' });
+    console.error('Join session error:', error);
+    res.status(500).render('error', { message: 'Error joining session' });
   }
 });
 
-// Admin manages session applications
-app.get('/admin/sessions/:id/applications', requireAdmin, async (req, res) => {
+// Player leaves session
+app.post('/sessions/:id/leave', requirePlayer, async (req, res) => {
+  try {
+    const sessionId = req.params.id;
+    const sessionRef = db.collection('sessions').doc(sessionId);
+    const sessionDoc = await sessionRef.get();
+    
+    if (!sessionDoc.exists) {
+      return res.status(404).render('error', { message: 'Session not found' });
+    }
+
+    const session = sessionDoc.data();
+    
+    // Check if session is in the past
+    if (new Date(session.dateTime) < new Date()) {
+      return res.status(400).render('error', { message: 'Cannot leave past sessions' });
+    }
+
+    // Remove player from session
+    await sessionRef.update({
+      players: admin.firestore.FieldValue.arrayRemove(req.user.id)
+    });
+
+    res.redirect('/dashboard');
+  } catch (error) {
+    console.error('Leave session error:', error);
+    res.status(500).render('error', { message: 'Error leaving session' });
+  }
+});
+
+// Admin views session participants
+app.get('/admin/sessions/:id/participants', requireAdmin, async (req, res) => {
   try {
     const sessionId = req.params.id;
     const sessionDoc = await db.collection('sessions').doc(sessionId).get();
@@ -479,79 +495,26 @@ app.get('/admin/sessions/:id/applications', requireAdmin, async (req, res) => {
       return res.status(404).render('error', { message: 'Session not found' });
     }
 
-    const applications = await db.collection('sessionApplications')
-      .where('sessionId', '==', sessionId)
-      .get();
-
     const session = { id: sessionDoc.id, ...sessionDoc.data() };
-    const applicationList = applications.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    // Get player details for participants
+    const participants = [];
+    if (session.players && session.players.length > 0) {
+      for (const playerId of session.players) {
+        const userDoc = await db.collection('users').doc(playerId).get();
+        if (userDoc.exists) {
+          participants.push({ id: userDoc.id, ...userDoc.data() });
+        }
+      }
+    }
 
-    res.render('admin/session-applications', {
+    res.render('admin/session-participants', {
       session,
-      applications: applicationList
+      participants
     });
   } catch (error) {
-    console.error('Applications load error:', error);
-    res.status(500).render('error', { message: 'Error loading applications' });
-  }
-});
-
-// Admin accepts/rejects applications
-app.post('/admin/applications/:id/accept', requireAdmin, async (req, res) => {
-  try {
-    const applicationId = req.params.id;
-    const applicationRef = db.collection('sessionApplications').doc(applicationId);
-    const applicationDoc = await applicationRef.get();
-    
-    if (!applicationDoc.exists) {
-      return res.status(404).render('error', { message: 'Application not found' });
-    }
-
-    const application = applicationDoc.data();
-    
-    // Update application status
-    await applicationRef.update({
-      status: 'accepted',
-      processedAt: new Date(),
-      processedBy: req.user.id
-    });
-
-    // Add player to session
-    const sessionRef = db.collection('sessions').doc(application.sessionId);
-    await sessionRef.update({
-      players: admin.firestore.FieldValue.arrayUnion(application.playerId)
-    });
-
-    res.redirect(`/admin/sessions/${application.sessionId}/applications`);
-  } catch (error) {
-    console.error('Accept application error:', error);
-    res.status(500).render('error', { message: 'Error accepting application' });
-  }
-});
-
-app.post('/admin/applications/:id/reject', requireAdmin, async (req, res) => {
-  try {
-    const applicationId = req.params.id;
-    const applicationRef = db.collection('sessionApplications').doc(applicationId);
-    const applicationDoc = await applicationRef.get();
-    
-    if (!applicationDoc.exists) {
-      return res.status(404).render('error', { message: 'Application not found' });
-    }
-
-    const application = applicationDoc.data();
-    
-    // Update application status
-    await applicationRef.update({
-      status: 'rejected',
-      processedAt: new Date(),
-      processedBy: req.user.id
-    });
-
-    res.redirect(`/admin/sessions/${application.sessionId}/applications`);
-  } catch (error) {
-    console.error('Reject application error:', error);
-    res.status(500).render('error', { message: 'Error rejecting application' });
+    console.error('Participants load error:', error);
+    res.status(500).render('error', { message: 'Error loading participants' });
   }
 });
 

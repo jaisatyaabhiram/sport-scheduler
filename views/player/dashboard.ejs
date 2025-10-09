@@ -14,93 +14,161 @@
         
         <div class="dashboard-stats">
             <div class="stat-card">
-                <div class="stat-number"><%= appliedSessions.length %></div>
-                <div>Sessions Applied</div>
+                <div class="stat-number"><%= joinedSessions.length %></div>
+                <div>Sessions Joined</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">
-                    <%= appliedSessions.filter(s => s.application && s.application.status === 'accepted').length %>
-                </div>
-                <div>Sessions Accepted</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">
-                    <%= availableSessions.filter(s => !s.hasApplied).length %>
+                    <%= availableSessions.filter(s => !s.hasJoined && !s.isFull).length %>
                 </div>
                 <div>Available Sessions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">
+                    <%= availableSessions.filter(s => s.isFull).length %>
+                </div>
+                <div>Full Sessions</div>
             </div>
         </div>
 
         <!-- Available Sessions -->
         <div class="card">
             <h2>Available Sessions</h2>
-            <% const availableToApply = availableSessions.filter(s => !s.hasApplied); %>
-            <% if (availableToApply.length === 0) { %>
+            <% const availableToJoin = availableSessions.filter(s => !s.hasJoined && !s.isFull); %>
+            <% if (availableToJoin.length === 0) { %>
                 <p>No available sessions at the moment. Check back later!</p>
             <% } else { %>
                 <div class="sessions-grid">
-                    <% availableToApply.forEach(session => { %>
+                    <% availableToJoin.forEach(session => { %>
                         <div class="session-card">
                             <h3><%= session.sport %></h3>
                             <div class="session-meta">
                                 <strong>Date:</strong> <%= session.dateTime.toDate().toLocaleString() %><br>
                                 <strong>Venue:</strong> <%= session.venue %><br>
+                                
+                                <!-- Team Information -->
+                                <% if (session.teamA && session.teamA.length > 0) { %>
+                                    <strong>Team A:</strong> <%= session.teamA.join(', ') %><br>
+                                <% } %>
+                                <% if (session.teamB && session.teamB.length > 0) { %>
+                                    <strong>Team B:</strong> <%= session.teamB.join(', ') %><br>
+                                <% } %>
+                                
                                 <strong>Players:</strong> <%= session.players ? session.players.length : 0 %>/<%= session.maxPlayers %><br>
+                                
+                                <!-- Additional Players Info -->
+                                <% if (session.additionalPlayersNeeded > 0) { %>
+                                    <strong>Additional Slots:</strong> <%= session.additionalPlayersNeeded %><br>
+                                <% } %>
+                                
                                 <strong>Status:</strong> <%= session.status %>
                             </div>
-                            <form action="/sessions/<%= session.id %>/apply" method="POST" style="margin-top: 10px;">
-                                <button type="submit" class="btn">Apply to Join</button>
+                            <form action="/sessions/<%= session.id %>/join" method="POST" style="margin-top: 10px;">
+                                <button type="submit" class="btn" style="background: #27ae60;">
+                                    <% if (session.teamA && session.teamA.length > 0 || session.teamB && session.teamB.length > 0) { %>
+                                        Join as Additional Player
+                                    <% } else { %>
+                                        Join Session
+                                    <% } %>
+                                </button>
                             </form>
                         </div>
                     <% }); %>
                 </div>
             <% } %>
         </div>
-        <div class="card">
-            <a href="/sessions/create" class="btn" style="width: 100%;">Create New Sport Session</a>
-        </div>
 
-        <!-- Sessions I've Applied To -->
+        <!-- Full Sessions -->
+        <% const fullSessions = availableSessions.filter(s => s.isFull && !s.hasJoined); %>
+        <% if (fullSessions.length > 0) { %>
+            <div class="card">
+                <h2>Full Sessions</h2>
+                <div class="sessions-grid">
+                    <% fullSessions.forEach(session => { %>
+                        <div class="session-card" style="opacity: 0.7;">
+                            <h3><%= session.sport %></h3>
+                            <div class="session-meta">
+                                <strong>Date:</strong> <%= session.dateTime.toDate().toLocaleString() %><br>
+                                <strong>Venue:</strong> <%= session.venue %><br>
+                                
+                                <!-- Team Information -->
+                                <% if (session.teamA && session.teamA.length > 0) { %>
+                                    <strong>Team A:</strong> <%= session.teamA.join(', ') %><br>
+                                <% } %>
+                                <% if (session.teamB && session.teamB.length > 0) { %>
+                                    <strong>Team B:</strong> <%= session.teamB.join(', ') %><br>
+                                <% } %>
+                                
+                                <strong>Players:</strong> <%= session.players ? session.players.length : 0 %>/<%= session.maxPlayers %><br>
+                                <strong>Status:</strong> FULL
+                            </div>
+                            <button type="button" class="btn" style="background: #95a5a6; cursor: not-allowed;" disabled>
+                                Session Full
+                            </button>
+                        </div>
+                    <% }); %>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- Sessions I've Joined -->
         <div class="card">
-            <h2>My Applications</h2>
-            <% if (appliedSessions.length === 0) { %>
-                <p>You haven't applied to any sessions yet.</p>
+            <h2>My Sessions</h2>
+            <% if (joinedSessions.length === 0) { %>
+                <p>You haven't joined any sessions yet.</p>
             <% } else { %>
                 <div class="sessions-grid">
-                    <% appliedSessions.forEach(session => { %>
+                    <% joinedSessions.forEach(session => { %>
                         <div class="session-card">
                             <h3><%= session.sport %></h3>
                             <div class="session-meta">
                                 <strong>Date:</strong> <%= session.dateTime.toDate().toLocaleString() %><br>
                                 <strong>Venue:</strong> <%= session.venue %><br>
-                                <strong>Application Status:</strong> 
-                                <span style="color: 
-                                    <%= session.application.status === 'accepted' ? '#27ae60' : 
-                                       session.application.status === 'rejected' ? '#e74c3c' : '#f39c12' %>">
-                                    <%= session.application.status.toUpperCase() %>
-                                </span>
-                                <% if (session.application.processedAt) { %>
-                                    <br><strong>Processed:</strong> <%= session.application.processedAt.toDate().toLocaleString() %>
+                                
+                                <!-- Team Information -->
+                                <% if (session.teamA && session.teamA.length > 0) { %>
+                                    <strong>Team A:</strong> <%= session.teamA.join(', ') %><br>
                                 <% } %>
+                                <% if (session.teamB && session.teamB.length > 0) { %>
+                                    <strong>Team B:</strong> <%= session.teamB.join(', ') %><br>
+                                <% } %>
+                                
+                                <strong>Players:</strong> <%= session.players ? session.players.length : 0 %>/<%= session.maxPlayers %><br>
+                                
+                                <!-- Show which team the current user is on -->
+                                <% 
+                                let userTeam = '';
+                                if (session.teamA && session.teamA.includes(locals.user.name)) {
+                                    userTeam = 'Team A';
+                                } else if (session.teamB && session.teamB.includes(locals.user.name)) {
+                                    userTeam = 'Team B';
+                                } else if (session.players && session.players.includes(locals.user.id)) {
+                                    userTeam = 'Additional Player';
+                                }
+                                %>
+                                <% if (userTeam) { %>
+                                    <strong>Your Role:</strong> <span style="color: #3498db;"><%= userTeam %></span><br>
+                                <% } %>
+                                
+                                <strong>Status:</strong> <%= session.status %>
                             </div>
-                            <% if (session.application.status === 'pending') { %>
-                                <p style="color: #f39c12; margin-top: 10px;">
-                                    <strong>Waiting for admin approval</strong>
-                                </p>
-                            <% } else if (session.application.status === 'accepted') { %>
-                                <p style="color: #27ae60; margin-top: 10px;">
-                                    <strong>✓ You're in! See you at the session.</strong>
-                                </p>
-                            <% } else if (session.application.status === 'rejected') { %>
-                                <p style="color: #e74c3c; margin-top: 10px;">
-                                    <strong>Application not accepted</strong>
-                                </p>
-                            <% } %>
+                            <form action="/sessions/<%= session.id %>/leave" method="POST" style="margin-top: 10px;">
+                                <button type="submit" class="btn" style="background: #e74c3c;">Leave Session</button>
+                            </form>
                         </div>
                     <% }); %>
                 </div>
             <% } %>
         </div>
+
+        <!-- Create Session Button (for players who want to create sessions) -->
+        <% if (locals.user.role === 'admin' || locals.user.role === 'player') { %>
+            <div class="card" style="text-align: center;">
+                <a href="/sessions/create" class="btn" style="background: #3498db; color: white; display: inline-block; padding: 12px 30px;">
+                    Create New Session
+                </a>
+            </div>
+        <% } %>
     </div>
 
     <%- include('../partials/footer') %>
