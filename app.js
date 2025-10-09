@@ -390,7 +390,7 @@ app.get('/admin/reports', requireAdmin, async (req, res) => {
 });
 
 // Session routes - Only admins can create sessions
-app.get('/sessions/create', requireAdmin, async (req, res) => {
+app.get('/sessions/create', async (req, res) => {
   try {
     const sports = await db.collection('sports').get();
     res.render('admin/create-session', {
@@ -402,7 +402,7 @@ app.get('/sessions/create', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/sessions/create', requireAdmin, async (req, res) => {
+app.post('/sessions/create',  async (req, res) => {
   try {
     const { sport, dateTime, venue, maxPlayers } = req.body;
     
