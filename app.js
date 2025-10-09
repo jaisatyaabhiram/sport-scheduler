@@ -336,7 +336,7 @@ app.post('/admin/sports', requireAdmin, async (req, res) => {
   }
 });
 
-app.get('/admin/reports', requireAdmin, async (req, res) => {
+app.get('/admin/reports',  async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     let sessionsQuery = db.collection('sessions');
